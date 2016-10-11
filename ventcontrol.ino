@@ -28,6 +28,8 @@ volatile unsigned long displayOnTimer = 0;
 volatile boolean displayShouldGoOff = false;
 int buttonState = HIGH;
 int buttonPrevState = HIGH;
+int sensorToShow = 0;
+char label[9] = "Sensor x";
 
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
@@ -43,6 +45,8 @@ void setup() {
   Timer1.initialize(1000);
   Timer1.attachInterrupt(displayTimerIsr);
   sensors.begin();
+  Serial.begin(9600);
+  label[8] = 0;
 }
 
 void loop() {
@@ -51,24 +55,34 @@ void loop() {
   buttonState = digitalRead(BUTTON_PIN);
   if (buttonState == LOW) {
      if (buttonPrevState == HIGH) { // turn display on with HIGH -> LOW transition
+      Serial.println("Button press -> turn display on");
       lcd->on();
+      sensorToShow = 0;
       noInterrupts();      
       displayOnTimer = DISPLAY_ON_TIME;
       interrupts();
-     } 
+     }
+    else {
+      sensorToShow++;
+      sensorToShow = sensorToShow % 3;
+      Serial.print("Sensor to show on display: ");
+      Serial.println(sensorToShow); 
+    } 
   }
   buttonPrevState = buttonState;
   setDisplayState();
 
   sensors.requestTemperatures();
-  float temp0 = sensors.getTempCByIndex(0);
-  float temp1 = sensors.getTempCByIndex(1);
-  float temp2 = sensors.getTempCByIndex(2);
-  printTemperature("Sensor 0", temp0);
-  delay(1000);
-  printTemperature("Sensor 1", temp1);
-  delay(1000);
-  printTemperature("Sensor 2", temp2);
+  Serial.println("Temperatures:");
+  for (int i=0; i<3; i++) {
+    Serial.print("Sensor ");
+    Serial.print(i);
+    Serial.print(": ");
+    Serial.println(sensors.getTempCByIndex(i));
+  }  
+  
+  label[7] = 48 + sensorToShow;
+  printTemperature(label, sensors.getTempCByIndex(sensorToShow));
   delay(1000);
 
 }
@@ -88,7 +102,7 @@ void setDisplayState(void) {
   displayShouldGoOff = false;
   interrupts();
   if (shouldGoOff) {
-    lcd ->off();
+    lcd->off();
   }    
 }
 
@@ -96,7 +110,8 @@ void printTemperature(String sensor, float temperature) {
   lcd->setCursor(0, 0);
   lcd->print(sensor);
   lcd->setCursor(0, 1);
-  char fAsChars[10];
+  char fAsChars[7] = "123.12";
+  fAsChars[6] = 0;
   dtostrf(temperature, 6, 2, fAsChars);
   lcd->print(fAsChars);
   
